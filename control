@@ -1,7 +1,7 @@
 Package: hi.my.name.is.ubik.oriental
 Name: Oriental
 Depends: mobilesubstrate
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm
 Maintainer: ubik <cydia@ubikstyl.es>
 Section: Tweaks
