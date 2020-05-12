@@ -13,6 +13,7 @@ static CGFloat screenWidth;
 BOOL isLocked;
 BOOL isShowing = NO;
 BOOL ENABLED = YES;
+NSString *lockedAppIdentifier;
 
 %hook SpringBoard
 - (void)applicationDidFinishLaunching:(id)application {
@@ -39,7 +40,7 @@ BOOL ENABLED = YES;
         [orientalView setBackgroundColor:[UIColor clearColor]];
         [orientalView setAutoresizingMask:UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight];
         [orientalView setUserInteractionEnabled:YES];
-        
+
         blurEffectView.alpha = 1.0;
         blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
         blurEffectView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
@@ -56,15 +57,51 @@ BOOL ENABLED = YES;
         [orientalView addGestureRecognizer:tapToToggleLock];
         [tapToToggleLock release];
         [orientalWindow addSubview:orientalView];
+
+      }
+}
+
+//Reset the lock when the application exits
+-(void)frontDisplayDidChange:(id)arg1
+{
+  %orig;
+
+  if ((arg1 == nil) && isLocked)
+  {
+    [self resetOrientalLock];
+    return;
+  }
+
+  if ([arg1 isKindOfClass:%c(SBApplication)] && isLocked)
+  {
+    if (![((SBApplication*)arg1).bundleIdentifier isEqualToString:lockedAppIdentifier])
+    {
+      [self resetOrientalLock];
     }
+  }
 }
 
 %new
+- (void)resetOrientalLock
+{
+  lockedAppIdentifier = nil;
+  isLocked = NO;
+  [[%c(SBOrientationLockManager) sharedInstance] unlock];
+}
+
+
+%new
 - (void)toggleLock:(UITapGestureRecognizer *)gestureRecognizer {
-    if (isLocked) {
-        [[%c(SBOrientationLockManager) sharedInstance] unlock];
-    } else {
-        [[%c(SBOrientationLockManager) sharedInstance] lock];
+
+    if (!isLocked)
+    {
+      lockedAppIdentifier = [self _accessibilityFrontMostApplication].bundleIdentifier;
+      isLocked = YES;
+      [UIView animateWithDuration:0.1 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
+          orientalWindow.alpha = 0.0;
+      } completion:nil];
+
+      [[%c(SBOrientationLockManager) sharedInstance] lock];
     }
 }
 %end
@@ -92,11 +129,24 @@ BOOL ENABLED = YES;
         }
 
         orientalWindow.hidden = NO;
-        isShowing = YES;
+
         [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
+            [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
+        } completion:^(BOOL finished) {
+            double delayInSeconds = 5;
+            dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
+            dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+                [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
+                    orientalWindow.alpha = 0.0;
+                } completion:^(BOOL finished) {
+                    isShowing = NO;
+                }];
+            });
+        }];isShowing = YES;
+
             orientalWindow.alpha = 1.0;
         } completion:^(BOOL finished) {
-            double delayInSeconds = 2.5;
+            double delayInSeconds = 5;
             dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
             dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
                 [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
@@ -112,36 +162,6 @@ BOOL ENABLED = YES;
         } completion:^(BOOL finished) {
             isShowing = NO;
         }];
-    }
-    %orig;
-}
-%end
-
-%hook SBOrientationLockManager
-- (BOOL)isUserLocked {
-    if (isLocked != %orig) {
-        if (!%orig) {
-            [orientalView setBackgroundColor:[UIColor clearColor]];
-            blurEffectView.alpha = 1.0;
-        } else {
-            [orientalView setBackgroundColor:[UIColor whiteColor]];
-            blurEffectView.alpha = 0.0;
-        }
-    }
-    isLocked = %orig;
-    return %orig;
-}
-- (void)unlock {
-    if (ENABLED) {
-        [orientalView setBackgroundColor:[UIColor clearColor]];
-        blurEffectView.alpha = 1.0;
-    }
-    %orig;
-}
-- (void)lock {
-    if (ENABLED) {
-        [orientalView setBackgroundColor:[UIColor whiteColor]];
-        blurEffectView.alpha = 0.0;
     }
     %orig;
 }

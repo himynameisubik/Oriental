@@ -10,6 +10,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = Oriental
 Oriental_FRAMEWORKS = Foundation UIKit CoreGraphics
 Oriental_FILES = Oriental.xm
+Oriental_CFLAGS = -Wno-deprecated-declarations
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 

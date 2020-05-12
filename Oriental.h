@@ -19,3 +19,12 @@
 - (void)lock;
 - (BOOL)isUserLocked;
 @end
+
+@interface SBApplication
+  @property (nonatomic,readonly) NSString * bundleIdentifier;
+@end
+
+@interface SpringBoard : UIApplication
+  -(SBApplication*)_accessibilityFrontMostApplication;
+  - (void)resetOrientalLock;
+@end
