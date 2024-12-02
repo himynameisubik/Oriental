@@ -1,8 +1,5 @@
-#import <QuartzCore/QuartzCore.h>
-#import <CoreFoundation/CoreFoundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <UIKit/UIKit.h>
-#import <UIKit/UIWindow+Private.h>
 
 @interface CAPackage : NSObject
 + (id)packageWithContentsOfURL:(id)arg1 type:(id)arg2 options:(id)arg3 error:(id)arg4;
@@ -20,11 +17,32 @@
 - (BOOL)isUserLocked;
 @end
 
+@interface SBApplicationInfo : NSObject
+  -(BOOL)supportsInterfaceOrientation:(NSInteger)orientation;
+  -(BOOL)hasHiddenTag;
+@end
+
 @interface SBApplication
   @property (nonatomic,readonly) NSString * bundleIdentifier;
+  @property (nonatomic,retain) SBApplicationInfo * info;
+@end
+
+@interface SBFTouchPassThroughViewController : UIViewController
+@end
+
+@interface OrientalIndicatorWindow : UIWindow
+    + (OrientalIndicatorWindow *)sharedWindow;
+@end
+
+@interface SBTraitsEmbeddedDisplayPipelineManager
+  -(BOOL)shouldProcessEventsForOrientation:(int)orientation;
 @end
 
 @interface SpringBoard : UIApplication
+  @property (nonatomic, retain) UIView *orientalIndicatorView;
+  @property (nonatomic, strong) NSTimer *orientalViewTimer;
   -(SBApplication*)_accessibilityFrontMostApplication;
-  - (void)resetOrientalLock;
+  -(long long)_frontMostAppOrientation;
+  - (void)resetOrientalState;
+  -(BOOL)isLocked;
 @end
