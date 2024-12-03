@@ -62,7 +62,7 @@ static void setOrientationLock(BOOL lock) {
         }
 
         [UIView animateWithDuration:0.2f delay:0.0f options:UIViewAnimationOptionCurveEaseInOut animations:^{
-            [self.FAB setAlpha:0.0f];
+            [self.orientalIndicatorView setAlpha:0.0f];
         } completion:^(BOOL finished) {
             self.orientalIndicatorView.hidden = YES;
         }];
@@ -73,8 +73,8 @@ static void setOrientationLock(BOOL lock) {
     %new
     - (void)unlockOrientationTapped:(UITapGestureRecognizer *)gestureRecognizer {
         setOrientationLock(NO);
-        isOrientationUnlockedByTweak = YES;          
         [self resetOrientalState];      
+        isOrientationUnlockedByTweak = YES;
     }
 
     %new
@@ -95,8 +95,8 @@ static void setOrientationLock(BOOL lock) {
         self.orientalIndicatorView.hidden = NO;
 
         [UIView animateWithDuration:0.2f delay:0.0f options:UIViewAnimationOptionCurveEaseIn animations:^{
-            [self.FAB setAlpha:1.0f];
-        } completion:^{            
+            [self.orientalIndicatorView setAlpha:1.0f];
+        } completion:^(BOOL finished){            
             UIImpactFeedbackGenerator *feedbackGenerator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
             [feedbackGenerator impactOccurred];            
             self.orientalViewTimer = [NSTimer scheduledTimerWithTimeInterval:5 target:self selector:@selector(resetOrientalState) userInfo:nil repeats:NO];            
