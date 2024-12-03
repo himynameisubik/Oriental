@@ -1,4 +1,3 @@
-#import <CoreGraphics/CoreGraphics.h>
 #import <UIKit/UIKit.h>
 
 @interface CAPackage : NSObject
@@ -30,6 +29,11 @@
 @interface SBFTouchPassThroughViewController : UIViewController
 @end
 
+@interface UIWindow (Oriental)
+- (void)_setSecure:(BOOL)arg1;
+- (void)setAutorotates:(BOOL)arg1;
+@end
+
 @interface OrientalIndicatorWindow : UIWindow
     + (OrientalIndicatorWindow *)sharedWindow;
 @end
@@ -38,11 +42,24 @@
   -(BOOL)shouldProcessEventsForOrientation:(int)orientation;
 @end
 
-@interface SpringBoard : UIApplication
+@interface UISystemGestureView : UIView
   @property (nonatomic, retain) UIView *orientalIndicatorView;
   @property (nonatomic, strong) NSTimer *orientalViewTimer;
+  - (void)resetOrientalState;
+@end
+
+@interface SpringBoard : UIApplication
   -(SBApplication*)_accessibilityFrontMostApplication;
   -(long long)_frontMostAppOrientation;
-  - (void)resetOrientalState;
   -(BOOL)isLocked;
+@end
+
+@interface SBControlCenterController : NSObject
+  +(id)sharedInstance;
+  -(BOOL)isPresented;
+@end
+
+@interface SBCoverSheetPresentationManager
+  +(id)sharedInstance;
+  -(BOOL)isPresented;
 @end

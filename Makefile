@@ -7,7 +7,6 @@ export FINALPACKAGE = 1
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = Oriental
-Oriental_FRAMEWORKS = Foundation UIKit CoreGraphics
 Oriental_FILES = Oriental.xm
 Oriental_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 
