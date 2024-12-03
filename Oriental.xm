@@ -1,148 +1,163 @@
 #import "Oriental.h"
 
-UIWindow *orientalWindow;
-UIView *orientalView;
-UITapGestureRecognizer *tapToToggleLock = nil;
-UIBlurEffect *blurEffect;
-UIVisualEffectView *blurEffectView;
-CCUICAPackageView *glyphView;
-
 extern NSString const *kCAPackageTypeCAMLBundle;
-static CGFloat screenHeight;
-static CGFloat screenWidth;
-BOOL isLocked;
-BOOL isShowing = NO;
-BOOL ENABLED = YES;
 
-%hook SpringBoard
-- (void)applicationDidFinishLaunching:(id)application {
-    %orig;
+static BOOL isOrientationUnlockedByTweak = NO;
 
-    if (ENABLED) {
-        CGSize screenSize = [[UIScreen mainScreen] bounds].size;
-        screenSize = CGSizeMake(MIN(screenSize.width, screenSize.height), MAX(screenSize.width, screenSize.height));
-        screenWidth = screenSize.width;
-        screenHeight = screenSize.height;
-
-        orientalWindow = [[UIWindow alloc] initWithFrame:CGRectMake(20, screenHeight-70, 50, 50)];
-        orientalWindow.backgroundColor = [UIColor clearColor];
-        orientalWindow.windowLevel = 100002;
-        orientalWindow.hidden = YES;
-        orientalWindow.alpha = 0.0;
-        orientalWindow.autoresizesSubviews = YES;
-        [orientalWindow _setSecure:YES];
-        [orientalWindow setUserInteractionEnabled:YES];
-
-        orientalView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 50, 50)];
-        orientalView.layer.cornerRadius = 10.0;
-        orientalView.layer.masksToBounds = YES;
-        [orientalView setBackgroundColor:[UIColor clearColor]];
-        [orientalView setAutoresizingMask:UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight];
-        [orientalView setUserInteractionEnabled:YES];
-        
-        blurEffectView.alpha = 1.0;
-        blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
-        blurEffectView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
-        blurEffectView.frame = orientalView.bounds;
-        [orientalView addSubview:blurEffectView];
-
-        glyphView = [[%c(CCUICAPackageView) alloc] initWithFrame:orientalView.bounds];
-        glyphView.package = [CAPackage packageWithContentsOfURL:[NSURL fileURLWithPath:@"/System/Library/ControlCenter/Bundles/OrientationLockModule.bundle/OrientationLock.ca"] type:kCAPackageTypeCAMLBundle options:nil error:nil];
-        [orientalView addSubview:glyphView];
-        [glyphView.centerXAnchor constraintEqualToAnchor:orientalView.centerXAnchor].active = YES;
-        [glyphView.centerYAnchor constraintEqualToAnchor:orientalView.centerYAnchor].active = YES;
-
-        tapToToggleLock = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleLock:)];
-        [orientalView addGestureRecognizer:tapToToggleLock];
-        [tapToToggleLock release];
-        [orientalWindow addSubview:orientalView];
-    }
+static BOOL isOrientationLocked() {
+    return [[%c(SBOrientationLockManager) sharedInstance] isUserLocked];
 }
 
-%new
-- (void)toggleLock:(UITapGestureRecognizer *)gestureRecognizer {
-    if (isLocked) {
-        [[%c(SBOrientationLockManager) sharedInstance] unlock];
-    } else {
-        [[%c(SBOrientationLockManager) sharedInstance] lock];
-    }
+static void setOrientationLock(BOOL lock) {
+    lock ? [[%c(SBOrientationLockManager) sharedInstance] lock] : [[%c(SBOrientationLockManager) sharedInstance] unlock];
 }
-%end
 
-%hook SBSceneView
-- (void)_setOrientation:(long long)orientation {
-    if (ENABLED && !isShowing && (orientation == 3 || orientation == 4)) {
-        if (orientation == 3) { //landscape right
-            CGAffineTransform rotate = CGAffineTransformMakeRotation(90 * M_PI/180);
-            CGAffineTransform scale = CGAffineTransformMakeScale(0.75, 0.75);
-            CGAffineTransform transform = CGAffineTransformConcat(rotate, scale);
-            glyphView.transform = transform;
+%hook UISystemGestureView
+    %property (nonatomic, retain) UIView *orientalIndicatorView;
+    %property (nonatomic, strong) NSTimer *orientalViewTimer;        
 
-            CGAffineTransform move  = CGAffineTransformMakeTranslation(0, 0);
-            orientalWindow.transform = move;
-        }
-        if (orientation == 4) { //landscape left
-            CGAffineTransform rotate = CGAffineTransformMakeRotation(-90 * M_PI/180);
-            CGAffineTransform scale = CGAffineTransformMakeScale(0.75, 0.75);
-            CGAffineTransform transform = CGAffineTransformConcat(rotate, scale);
-            glyphView.transform = transform;
+    - (void)layoutSubviews {
+        %orig;
 
-            CGAffineTransform move  = CGAffineTransformMakeTranslation(+screenWidth-90, -screenHeight+90);
-            orientalWindow.transform = move;
-        }
+        if (!self.orientalIndicatorView) {
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(showOrientalIndicatorViewForOrientation:) name:@"showOrientalIndicatorView" object:nil];
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(resetOrientalState) name:@"resetOrientalState" object:nil];
 
-        orientalWindow.hidden = NO;
-        isShowing = YES;
-        [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
-            orientalWindow.alpha = 1.0;
-        } completion:^(BOOL finished) {
-            double delayInSeconds = 2.5;
-            dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
-            dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
-                [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
-                    orientalWindow.alpha = 0.0;
-                } completion:^(BOOL finished) {
-                    isShowing = NO;
-                }];
-            });
-        }];
-    } else if (ENABLED && isShowing && (orientation != 3 && orientation != 4)) {
-        [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationCurveEaseInOut animations:^{
-            orientalWindow.alpha = 0.0;
-        } completion:^(BOOL finished) {
-            isShowing = NO;
-        }];
-    }
-    %orig;
-}
-%end
+            setOrientationLock(YES);
 
-%hook SBOrientationLockManager
-- (BOOL)isUserLocked {
-    if (isLocked != %orig) {
-        if (!%orig) {
-            [orientalView setBackgroundColor:[UIColor clearColor]];
+            self.orientalIndicatorView = [[UIView alloc] initWithFrame:CGRectMake(30, ([UIScreen mainScreen].bounds.size.height / 2) - 40, 80, 80)];
+            self.orientalIndicatorView.alpha = 1.0;
+            self.orientalIndicatorView.hidden = YES;
+            self.orientalIndicatorView.layer.cornerRadius = 16.0;
+            self.orientalIndicatorView.layer.masksToBounds = YES;
+            [self.orientalIndicatorView setBackgroundColor:[UIColor clearColor]];
+            //[self.orientalIndicatorView setAutoresizingMask:UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight];
+             [self.orientalIndicatorView setValue:@NO forKey:@"deliversTouchesForGesturesToSuperview"];
+            [self.orientalIndicatorView setUserInteractionEnabled:YES];
+
+            UIBlurEffect *blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
+            UIVisualEffectView *blurEffectView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
             blurEffectView.alpha = 1.0;
-        } else {
-            [orientalView setBackgroundColor:[UIColor whiteColor]];
-            blurEffectView.alpha = 0.0;
+            blurEffectView.frame = self.orientalIndicatorView.bounds;
+            [self.orientalIndicatorView addSubview:blurEffectView];
+
+            CCUICAPackageView *glyphView = [[%c(CCUICAPackageView) alloc] initWithFrame:self.orientalIndicatorView.bounds];
+            glyphView.package = [CAPackage packageWithContentsOfURL:[NSURL fileURLWithPath:@"/System/Library/ControlCenter/Bundles/OrientationLockModule.bundle/OrientationLock.ca"] type:kCAPackageTypeCAMLBundle options:nil error:nil];
+            [self.orientalIndicatorView addSubview:glyphView];
+            [glyphView.centerXAnchor constraintEqualToAnchor:self.orientalIndicatorView.centerXAnchor].active = YES;
+            [glyphView.centerYAnchor constraintEqualToAnchor:self.orientalIndicatorView.centerYAnchor].active = YES;
+
+            UITapGestureRecognizer *tapToToggleLock = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(unlockOrientationTapped:)];
+            [self.orientalIndicatorView addGestureRecognizer:tapToToggleLock];
+
+            [self addSubview:self.orientalIndicatorView];
         }
     }
-    isLocked = %orig;
-    return %orig;
-}
-- (void)unlock {
-    if (ENABLED) {
-        [orientalView setBackgroundColor:[UIColor clearColor]];
-        blurEffectView.alpha = 1.0;
+
+    %new
+    - (void)resetOrientalState {
+        if (self.orientalViewTimer != nil) {
+            [self.orientalViewTimer invalidate];
+            self.orientalViewTimer = nil;
+        }
+
+        [UIView animateWithDuration:0.2f delay:0.0f options:UIViewAnimationOptionCurveEaseInOut animations:^{
+            [self.orientalIndicatorView setAlpha:0.0f];
+        } completion:^(BOOL finished) {
+            self.orientalIndicatorView.hidden = YES;
+        }];
+
+        isOrientationUnlockedByTweak = NO; 
+    }    
+
+    %new
+    - (void)unlockOrientationTapped:(UITapGestureRecognizer *)gestureRecognizer {
+        setOrientationLock(NO);
+        [self resetOrientalState];      
+        isOrientationUnlockedByTweak = YES;
     }
-    %orig;
-}
-- (void)lock {
-    if (ENABLED) {
-        [orientalView setBackgroundColor:[UIColor whiteColor]];
-        blurEffectView.alpha = 0.0;
+
+    %new
+    - (void)showOrientalIndicatorViewForOrientation:(NSNotification *)notification {        
+        NSDictionary* userInfo = notification.userInfo;
+        int orientation = [userInfo[@"orientation"] intValue];        
+
+        //NSLog(@"KPD showing view for orientation %d",orientation);
+        if (orientation == 3) {
+            self.orientalIndicatorView.frame = CGRectMake(([UIScreen mainScreen].bounds.size.width - 100), ([UIScreen mainScreen].bounds.size.height / 2) - 40, 80, 80);
+            self.orientalIndicatorView.transform = CGAffineTransformMakeRotation(90 * M_PI/180);
+        }
+        else {
+            self.orientalIndicatorView.frame = CGRectMake(20, ([UIScreen mainScreen].bounds.size.height / 2) - 40, 80, 80);
+            self.orientalIndicatorView.transform = CGAffineTransformMakeRotation(270 * M_PI/180);
+        }
+
+        self.orientalIndicatorView.hidden = NO;
+
+        [UIView animateWithDuration:0.2f delay:0.0f options:UIViewAnimationOptionCurveEaseIn animations:^{
+            [self.orientalIndicatorView setAlpha:1.0f];
+        } completion:^(BOOL finished){            
+            UIImpactFeedbackGenerator *feedbackGenerator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
+            [feedbackGenerator impactOccurred];            
+            self.orientalViewTimer = [NSTimer scheduledTimerWithTimeInterval:5 target:self selector:@selector(resetOrientalState) userInfo:nil repeats:NO];            
+        }];                  
+    }     
+
+%end
+
+int lastOrientation = 1;
+
+%hook SBTraitsEmbeddedDisplayPipelineManager 
+
+	-(void)accelerometer:(id)arg1 didChangeDeviceOrientation:(NSInteger)currentOrientation {
+		%orig;
+
+        if (![self shouldProcessEventsForOrientation:currentOrientation])
+            return;
+
+		// 1 - Portrait
+		// 2 - Portrait Upside down
+		// 3 - Landscape Left
+		// 4 - Landscape Right
+		// 5 - Flat Faceup
+		// 6 - Flat Facedown
+		if (currentOrientation == 3 || currentOrientation == 4) {
+            NSDictionary* userInfo = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt:currentOrientation] forKey:@"orientation"];
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"showOrientalIndicatorView" object:self userInfo:userInfo];
+        }
+        else {
+            if ((lastOrientation == 3 || lastOrientation == 4) && (currentOrientation == 1 || currentOrientation == 2) && isOrientationUnlockedByTweak) {
+                setOrientationLock(YES);
+            }
+
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"resetOrientalState" object:self userInfo:nil];            
+        }
+
+        lastOrientation = currentOrientation;
+	}
+
+    %new
+    -(BOOL)shouldProcessEventsForOrientation:(int)orientation {
+
+        if (!isOrientationLocked() && !isOrientationUnlockedByTweak)
+            return NO;
+
+        SpringBoard *sb = (SpringBoard *)[UIApplication sharedApplication];
+        id topPresentedApp = [sb _accessibilityFrontMostApplication];
+        BOOL isDeviceLocked = [sb isLocked];
+        UIDeviceOrientation appOrientation = [sb _frontMostAppOrientation];
+
+        if (isDeviceLocked || topPresentedApp == nil || (appOrientation != UIDeviceOrientationPortrait) || ([[%c(SBControlCenterController) sharedInstance] isPresented]) || ([[%c(SBCoverSheetPresentationManager) sharedInstance] isPresented])) {
+            // tweak disabled
+            // device is locked 
+            // there's no app in foreground
+            // CC or NC presented
+            // ==> quit
+            return NO;
+        }
+        
+        SBApplicationInfo *appInfo = ((SBApplication *)topPresentedApp).info;
+        return ![appInfo hasHiddenTag] && [appInfo supportsInterfaceOrientation:orientation];
     }
-    %orig;
-}
+
 %end
